@@ -13,7 +13,7 @@ return [
 
     'idp_login' => 'https://uabks.arizona.edu/Shibboleth.sso/Login',
     'idp_logout' => 'https://uabks.arizona.edu/Shibboleth.sso/Logout?return=https%3A%2F%2Fshibboleth.arizona.edu%2Fcgi-bin%2Flogout.pl',
-    'authenticated' => '/',
+    'authenticated' => '/shibboleth-authenticated',
 
     /*
     |--------------------------------------------------------------------------
@@ -99,4 +99,6 @@ return [
      */
 
     'jwtauth' => env('JWTAUTH', false),
+    'passport' => env('PASSPORT', true)
+
 ];

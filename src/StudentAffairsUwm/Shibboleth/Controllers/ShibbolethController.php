@@ -1,10 +1,12 @@
 <?php
 namespace StudentAffairsUwm\Shibboleth\Controllers;
 
+use Dinolytics\Authentication\User;
 use Illuminate\Auth\GenericUser;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Input;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Request;
@@ -92,28 +94,43 @@ class ShibbolethController extends Controller
 
         // Attempt to login with the email, if success, update the user model
         // with data from the Shibboleth headers (if present)
-        if (Auth::attempt(array('email' => $map['email']), true)) {
-            $user = $userClass::where('email', '=', $map['email'])->first();
 
-            // Update the model as necessary
-            $user->update($map);
+        $passport = config('shibboleth.passport', true);
+
+        $user = null;
+        if( ! $passport) {
+            if (Auth::attempt(array('email' => $map['email']), true)) {
+                $user = $userClass::where('email', '=', $map['email'])->first();
+
+                // Update the model as necessary
+                $user->update($map);
+            }
+        } else {
+            $user = User::whereEmail($map['email'])->first();
         }
 
         // Add user and send through auth.
-        elseif (config('shibboleth.add_new_users', true)) {
+        if($user === null && config('shibboleth.add_new_users', true)) {
             $map['password'] = 'shibboleth';
             $user = $userClass::create($map);
-            Auth::login($user);
-        } else {
+
+            if( ! $passport) {
+                Auth::login($user);
+            }
+        } else if($user === null) {
             return abort(403, 'Unauthorized');
         }
 
-        Session::regenerate();
+        if( ! $passport) {
+            Session::regenerate();
+        }
 
         $route = config('shibboleth.authenticated');
 
         if (config('jwtauth') === true) {
             $route .= $this->tokenizeRedirect($user, ['auth_type' => 'idp']);
+        } else if($passport === true) {
+            $route .= $this->passportRedirect($user);
         }
 
         return redirect()->intended($route);
@@ -250,6 +267,13 @@ class ShibbolethController extends Controller
 
         // We need to pass the token... how?
         // Let's try this.
-        return "?token=$token";
+        return '?token=' . $token;
+    }
+
+    private function passportRedirect($user)
+    {
+        $token = $user->createToken('shibboleth');
+
+        return '?token=' . $token->accessToken;
     }
 }
